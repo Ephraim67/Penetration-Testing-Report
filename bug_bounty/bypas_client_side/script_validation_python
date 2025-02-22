@@ -1,0 +1,36 @@
+import requests
+from bs4 import BeautifulSoup
+
+# Target URL
+TARGET_URL = "https://example.com/Shop.aspx?prod=2"
+
+# Function to test form validation bypass
+def test_form_validation():
+    # Normal quantity within limits
+    valid_data = {"quantity": "10"}
+    # Overlimit quantity to bypass validation
+    overlimit_data = {"quantity": "9999"}
+    # Negative quantity
+    negative_data = {"quantity": "-10"}
+    # Non-numeric input
+    xss_payload = {"quantity": "<script>alert('XSS')</script>"}
+    
+    test_cases = {
+        "Valid Quantity": valid_data,
+        "Overlimit Quantity": overlimit_data,
+        "Negative Quantity": negative_data,
+        "XSS Injection": xss_payload,
+    }
+    
+    for test_name, data in test_cases.items():
+        print(f"[+] Testing: {test_name}")
+        response = requests.post(TARGET_URL, data=data)
+        
+        if "error" in response.text.lower() or "invalid" in response.text.lower():
+            print(f"[!] Server rejected {test_name}: {response.status_code}")
+        else:
+            print(f"[!!!] Possible Bypass for {test_name}! Check response manually.")
+        print("-" * 50)
+
+if __name__ == "__main__":
+    test_form_validation()
