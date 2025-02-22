@@ -14,12 +14,15 @@ def test_form_validation():
     negative_data = {"quantity": "-10"}
     # Non-numeric input
     xss_payload = {"quantity": "<script>alert('XSS')</script>"}
+    # Modify client-side validation logic
+    bypass_js_validation = {"quantity": "0 OR 1=1"}
     
     test_cases = {
         "Valid Quantity": valid_data,
         "Overlimit Quantity": overlimit_data,
         "Negative Quantity": negative_data,
         "XSS Injection": xss_payload,
+        "Bypass JS Validation": bypass_js_validation,
     }
     
     for test_name, data in test_cases.items():
